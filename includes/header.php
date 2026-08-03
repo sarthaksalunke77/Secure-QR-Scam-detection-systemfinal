@@ -46,9 +46,6 @@
                 <a href="history.php" class="flex items-center gap-2 text-gray-300 hover:text-white transition-colors">
                     <i class="ph ph-clock-counter-clockwise"></i> History
                 </a>
-                <a href="awareness.php" class="flex items-center gap-2 text-gray-300 hover:text-white transition-colors">
-                    <i class="ph ph-shield-warning"></i> Awareness
-                </a>
             </div>
         </div>
     </nav>
