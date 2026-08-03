@@ -1,4 +1,20 @@
-<?php include 'includes/light-header.php'; ?>
+<?php 
+$keysFile = 'api/keys.json';
+$keys = [];
+if (file_exists($keysFile)) {
+    $keys = json_decode(file_get_contents($keysFile), true) ?: [];
+}
+$gsbKey = $keys['google_safe_browsing'] ?? '';
+$vtKey = $keys['virustotal'] ?? '';
+$abuseKey = $keys['abuseipdb'] ?? '';
+
+// Check if keys are dummy placeholders
+if ($gsbKey === 'virustotal.com' || $gsbKey === 'Google Cloud Console') $gsbKey = '';
+if ($vtKey === 'virustotal.com' || $vtKey === 'Google Cloud Console') $vtKey = '';
+if ($abuseKey === 'virustotal.com' || $abuseKey === 'Google Cloud Console') $abuseKey = '';
+
+include 'includes/light-header.php'; 
+?>
 
 <style>
 /* Custom Toggle Switch Styles */
@@ -194,50 +210,63 @@
             <!-- DETECTION TAB -->
             <div id="content-detection" class="tab-content hidden">
                 <div class="flex items-center gap-2 mb-6 border-b border-gray-100 pb-3">
-                    <h2 class="text-lg font-bold text-gray-800 m-0">Threat Detection</h2>
+                    <h2 class="text-lg font-bold text-gray-800 m-0">Threat Detection & API Keys</h2>
                     <i class="ph-fill ph-star text-amber-400 text-lg"></i>
                 </div>
                 <div class="space-y-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h4 class="text-sm font-bold text-gray-800 m-0 flex items-center gap-1.5"><i class="ph-fill ph-google-logo text-[#4285F4]"></i> Google Safe Browsing</h4>
-                            <p class="text-[12px] text-gray-500 m-0 mt-1">Cross-reference URLs with Google's threat list</p>
+                    <!-- Google Safe Browsing -->
+                    <div class="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="text-sm font-bold text-gray-800 m-0 flex items-center gap-1.5"><i class="ph-fill ph-google-logo text-[#4285F4]"></i> Google Safe Browsing</h4>
+                                <p class="text-[12px] text-gray-500 m-0 mt-1">Cross-reference URLs with Google's threat database</p>
+                            </div>
                         </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" class="sr-only peer" checked onchange="showToast('Settings saved!')">
-                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                        </label>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h4 class="text-sm font-bold text-gray-800 m-0 flex items-center gap-1.5"><i class="ph-fill ph-bug text-[#0D32B2]"></i> VirusTotal Scan</h4>
-                            <p class="text-[12px] text-gray-500 m-0 mt-1">Query VirusTotal database for malware flags</p>
+                        <div class="flex gap-2">
+                            <input type="text" id="api-key-google" value="<?php echo htmlspecialchars($gsbKey); ?>" placeholder="Enter Google Safe Browsing API Key" class="flex-1 bg-white border border-gray-300 text-gray-700 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500">
+                            <button onclick="saveApiKey('google')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition-colors">Save</button>
                         </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" class="sr-only peer" checked onchange="showToast('Settings saved!')">
-                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                        </label>
                     </div>
+
+                    <!-- VirusTotal -->
+                    <div class="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="text-sm font-bold text-gray-800 m-0 flex items-center gap-1.5"><i class="ph-fill ph-bug text-[#0D32B2]"></i> VirusTotal Reputation Engine</h4>
+                                <p class="text-[12px] text-gray-500 m-0 mt-1">Query VirusTotal database for domain/URL reputation</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <input type="text" id="api-key-virustotal" value="<?php echo htmlspecialchars($vtKey); ?>" placeholder="Enter VirusTotal API Key" class="flex-1 bg-white border border-gray-300 text-gray-700 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500">
+                            <button onclick="saveApiKey('virustotal')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition-colors">Save</button>
+                        </div>
+                    </div>
+
+                    <!-- AbuseIPDB -->
+                    <div class="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="text-sm font-bold text-gray-800 m-0 flex items-center gap-1.5"><i class="ph-fill ph-shield text-[#E28743]"></i> AbuseIPDB Scanner</h4>
+                                <p class="text-[12px] text-gray-500 m-0 mt-1">Query AbuseIPDB database for malicious IP confidence</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <input type="text" id="api-key-abuseipdb" value="<?php echo htmlspecialchars($abuseKey); ?>" placeholder="Enter AbuseIPDB API Key" class="flex-1 bg-white border border-gray-300 text-gray-700 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500">
+                            <button onclick="saveApiKey('abuseipdb')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition-colors">Save</button>
+                        </div>
+                    </div>
+
                     <div class="flex items-center justify-between">
                         <div>
                             <h4 class="text-sm font-bold text-gray-800 m-0">SSL Certificate Validation</h4>
                             <p class="text-[12px] text-gray-500 m-0 mt-1">Check if the destination has a valid SSL certificate</p>
                         </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
+                        <label class="relative inline-flex inline-flex items-center cursor-pointer">
                             <input type="checkbox" class="sr-only peer" checked onchange="showToast('Settings saved!')">
                             <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                         </label>
                     </div>
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h4 class="text-sm font-bold text-gray-800 m-0">Redirect Detection</h4>
-                            <p class="text-[12px] text-gray-500 m-0 mt-1">Identify and trace URL shorteners/redirects</p>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" class="sr-only peer" checked onchange="showToast('Settings saved!')">
-                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                        </label>
-                    </div>
+
                     <div class="flex items-center justify-between">
                         <div>
                             <h4 class="text-sm font-bold text-gray-800 m-0">AI Risk Score Threshold</h4>
@@ -433,7 +462,7 @@ function clearHistory() {
 }
 
 function saveApiKey(service) {
-    let inputId = service === 'google' ? 'api-key-google' : 'api-key-vt';
+    let inputId = 'api-key-' + service;
     let val = document.getElementById(inputId).value;
     
     let payload = {};

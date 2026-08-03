@@ -22,6 +22,9 @@ if (isset($data['google'])) {
 if (isset($data['virustotal'])) {
     $existing['virustotal'] = $data['virustotal'];
 }
+if (isset($data['abuseipdb'])) {
+    $existing['abuseipdb'] = $data['abuseipdb'];
+}
 
 file_put_contents($keysFile, json_encode($existing, JSON_PRETTY_PRINT));
 
