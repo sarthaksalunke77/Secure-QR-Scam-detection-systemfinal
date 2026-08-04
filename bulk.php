@@ -325,40 +325,47 @@ document.addEventListener('DOMContentLoaded', () => {
             let warningCount = 0;
             let dangerCount = 0;
 
-            for (let i = 0; i < allPayloads.length; i++) {
-                progressText.innerText = `Analyzing: ${i} / ${allPayloads.length} (Safe: ${safeCount}, Suspicious: ${warningCount}, Dangerous: ${dangerCount})`;
-                const item = allPayloads[i];
-                
-                try {
-                    const res = await fetch('api/scan.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            payload: item.payload,
-                            input_type: 'bulk',
-                            qr_image: item.qrImageDataUrl
-                        })
-                    });
-                    const data = await res.json();
-                    
-                    if (data.scan_id) {
-                        const verdict = data.scoring.verdict;
-                        if (verdict === 'SAFE') safeCount++;
-                        else if (verdict === 'WARNING' || verdict === 'SUSPICIOUS') warningCount++;
-                        else dangerCount++;
+            let processedCount = 0;
+            const CONCURRENCY_LIMIT = 10; // Process 10 items concurrently to drastically improve speed
 
-                        finalResults.push({
-                            payload: item.payload,
-                            qr: item.qrImageDataUrl,
-                            riskScore: data.scoring.riskScore,
-                            trustScore: data.scoring.trustScore,
-                            verdict: verdict === 'SUSPICIOUS' ? 'WARNING' : verdict,
-                            details: data
+            for (let i = 0; i < allPayloads.length; i += CONCURRENCY_LIMIT) {
+                const chunk = allPayloads.slice(i, i + CONCURRENCY_LIMIT);
+                
+                await Promise.all(chunk.map(async (item) => {
+                    try {
+                        const res = await fetch('api/scan.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                payload: item.payload,
+                                input_type: 'bulk',
+                                qr_image: item.qrImageDataUrl
+                            })
                         });
+                        const data = await res.json();
+                        
+                        if (data.scan_id) {
+                            const verdict = data.scoring.verdict;
+                            if (verdict === 'SAFE') safeCount++;
+                            else if (verdict === 'WARNING' || verdict === 'SUSPICIOUS') warningCount++;
+                            else dangerCount++;
+
+                            finalResults.push({
+                                payload: item.payload,
+                                qr: item.qrImageDataUrl,
+                                riskScore: data.scoring.riskScore,
+                                trustScore: data.scoring.trustScore,
+                                verdict: verdict === 'SUSPICIOUS' ? 'WARNING' : verdict,
+                                details: data
+                            });
+                        }
+                    } catch (err) {
+                        console.error("Scan error on", item.payload, err);
+                    } finally {
+                        processedCount++;
+                        progressText.innerText = `Analyzing: ${processedCount} / ${allPayloads.length} (Safe: ${safeCount}, Suspicious: ${warningCount}, Dangerous: ${dangerCount})`;
                     }
-                } catch (err) {
-                    console.error("Scan error on", item.payload, err);
-                }
+                }));
             }
             
             progressText.innerText = `Fetching final results...`;
