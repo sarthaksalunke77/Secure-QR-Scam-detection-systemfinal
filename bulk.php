@@ -71,7 +71,7 @@
                         <div id="res-safe" class="text-2xl font-bold text-cyber-safe">0</div>
                     </div>
                     <div class="glass-panel p-4 rounded-lg text-center border-b-2 border-cyber-warning">
-                        <div class="text-xs text-gray-500 uppercase">Warning</div>
+                        <div class="text-xs text-gray-500 uppercase">Caution</div>
                         <div id="res-warning" class="text-2xl font-bold text-cyber-warning">0</div>
                     </div>
                     <div class="glass-panel p-4 rounded-lg text-center border-b-2 border-cyber-danger">
@@ -299,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let dangerCount = 0;
 
             for (let i = 0; i < allPayloads.length; i++) {
-                progressText.innerText = `Analyzing: ${i} / ${allPayloads.length} (Safe: ${safeCount}, Suspicious: ${warningCount}, Dangerous: ${dangerCount})`;
+                progressText.innerText = `Analyzing: ${i} / ${allPayloads.length} (Safe: ${safeCount}, Caution: ${warningCount}, Dangerous: ${dangerCount})`;
                 const item = allPayloads[i];
                 
                 try {
@@ -317,15 +317,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (data.scan_id) {
                         const verdict = data.scoring.verdict;
                         if (verdict === 'SAFE') safeCount++;
-                        else if (verdict === 'WARNING' || verdict === 'SUSPICIOUS') warningCount++;
+                        else if (verdict === 'LOW_RISK' || verdict === 'CAUTION' || verdict === 'WARNING' || verdict === 'SUSPICIOUS') warningCount++;
                         else dangerCount++;
+
+                        // Map verdict to display-friendly label
+                        let displayVerdict;
+                        if (verdict === 'SAFE') displayVerdict = 'SAFE';
+                        else if (verdict === 'LOW_RISK' || verdict === 'CAUTION') displayVerdict = 'CAUTION';
+                        else if (verdict === 'SUSPICIOUS' || verdict === 'WARNING') displayVerdict = 'WARNING';
+                        else displayVerdict = 'DANGEROUS';
 
                         finalResults.push({
                             payload: item.payload,
                             qr: item.qrImageDataUrl,
                             riskScore: data.scoring.riskScore,
                             trustScore: data.scoring.trustScore,
-                            verdict: verdict === 'SUSPICIOUS' ? 'WARNING' : verdict,
+                            verdict: displayVerdict,
                             details: data
                         });
                     }
@@ -367,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td class="p-3 font-semibold text-center">
                         <a href="report.php?id=${d.scan_id}" target="_blank" class="inline-block px-2 py-1 rounded text-xs font-bold uppercase tracking-wider transition-all hover:scale-105 cursor-pointer no-underline ${
                             r.verdict === 'SAFE' ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' :
-                            r.verdict === 'WARNING' ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' :
+                            (r.verdict === 'CAUTION' || r.verdict === 'WARNING') ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' :
                             'bg-red-500/20 text-red-400 hover:bg-red-500/30'
                         }">${r.verdict}</a>
                     </td>
