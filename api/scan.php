@@ -20,7 +20,7 @@ $qrImage = $data['qr_image'] ?? null;
 require_once 'services/RiskEngine.php';
 
 $engine = new RiskEngine();
-$result = $engine->processPayload($payload, $qrImage);
+$result = $engine->processPayload($payload, $qrImage, ['input_type' => $inputType]);
 
 $detailsJson = json_encode($result);
 $payloadType = $result['payloadClass']['type'];

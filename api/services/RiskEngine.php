@@ -30,9 +30,11 @@ class RiskEngine {
         }
     }
 
-    public function processPayload($payload, $qrImage = null) {
+    public function processPayload($payload, $qrImage = null, $options = []) {
         $this->evidenceMap = [];
         $this->totalRisk = 0;
+        
+        $isBulk = ($options['input_type'] ?? '') === 'bulk';
 
         $payloadClass = Classifier::classifyPayload($payload);
         
@@ -51,9 +53,14 @@ class RiskEngine {
             $analysis = Analyzer::analyzeUrl($payload);
             
             // Fetch live page metadata (Title, Description)
-            $metadata = PageScraper::fetchMetadata($analysis['normalizedUrl']);
-            $analysis['title'] = $metadata['title'];
-            $analysis['description'] = $metadata['description'];
+            if (!$isBulk) {
+                $metadata = PageScraper::fetchMetadata($analysis['normalizedUrl']);
+                $analysis['title'] = $metadata['title'];
+                $analysis['description'] = $metadata['description'];
+            } else {
+                $analysis['title'] = 'N/A (Bulk Mode)';
+                $analysis['description'] = 'N/A (Bulk Mode)';
+            }
             
             if (isset($analysis['indicators']) && is_array($analysis['indicators'])) {
                 foreach ($analysis['indicators'] as $ind) {
@@ -117,12 +124,20 @@ class RiskEngine {
             }
 
             // 4. GeoIP Check
-            $geoIP = GeoIP::lookup($domain);
-            if ($geoIP['country'] !== 'Unknown') $checksCompleted++;
+            if (!$isBulk) {
+                $geoIP = GeoIP::lookup($domain);
+                if ($geoIP['country'] !== 'Unknown') $checksCompleted++;
+            } else {
+                $geoIP = ['country' => 'Unknown', 'city' => 'Unknown', 'isp' => 'Unknown', 'proxy' => false, 'hosting' => false];
+            }
 
             // 5. Security Headers Check
-            $headersCheck = SecurityHeaders::checkHeaders($urlToCheckSSL);
-            if ($headersCheck['checked']) $checksCompleted++;
+            if (!$isBulk) {
+                $headersCheck = SecurityHeaders::checkHeaders($urlToCheckSSL);
+                if ($headersCheck['checked']) $checksCompleted++;
+            } else {
+                $headersCheck = ['checked' => false, 'headers' => [], 'grade' => 'N/A', 'score' => 0];
+            }
 
             // 6. Threat Intel
             $threatIntel = ThreatIntel::checkThreatIntel($domain, $analysis['normalizedUrl']);
