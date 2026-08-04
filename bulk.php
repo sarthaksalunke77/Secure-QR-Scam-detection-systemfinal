@@ -94,7 +94,7 @@
                                 <tr class="bg-gray-900/30 sticky top-0">
                                     <th class="p-3 text-gray-400 font-semibold w-12">QR</th>
                                     <th class="p-3 text-gray-400 font-semibold">Payee Name / URL</th>
-                                    <th class="p-3 text-gray-400 font-semibold">UPI ID / Domain</th>
+                                    <th class="p-3 text-gray-400 font-semibold">UPI ID / Payload</th>
                                     <th class="p-3 text-gray-400 font-semibold text-center">Risk Score</th>
                                     <th class="p-3 text-gray-400 font-semibold text-center">Trust Score</th>
                                     <th class="p-3 text-gray-400 font-semibold text-center">Verdict</th>
@@ -386,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     name = 'Web URL';
                 }
-                const idOrDomain = isUpi && upi.pa ? upi.pa : (d.analysisResult?.domain || r.payload);
+                const idOrDomain = isUpi && upi.pa ? upi.pa : r.payload;
                 const verBadge = isUpi ? `<span class="text-[10px] text-yellow-400 block">(${verStatus ? 'Unverified' : ''})</span>` : '';
                 
                 return `
@@ -451,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         doc.autoTable({
             startY: currentY,
-            head: [['QR Holder Name', 'UPI ID / Domain', 'Risk Score', 'Trust Score', 'Verdict']],
+            head: [['QR Holder Name', 'UPI ID / Payload', 'Risk Score', 'Trust Score', 'Verdict']],
             body: summaryData,
             styles: { fontSize: 8, cellPadding: 2 },
         });
