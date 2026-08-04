@@ -274,10 +274,15 @@ class RiskEngine {
             elseif ($trustScore >= 50) $verdict = 'SUSPICIOUS';
             else $verdict = 'DANGEROUS';
 
-            // Use real payee name from QR code 'pn' field only — never fabricate
-            // If no pn field is present in the QR, show honest "Not Available"
-            if (empty($payloadClass['data']['pn'])) {
-                $payloadClass['data']['pn'] = 'Not Available';
+            // UPI holder name - use what's in the QR code (self-declared by creator), do NOT fabricate
+            if ($payloadClass['type'] === 'upi_id_only') {
+                // For standalone UPI IDs, we have no payee name info
+                $payloadClass['data']['pn'] = null;
+                $payloadClass['data']['pa'] = $d['vpa'] ?? null;
+                $payloadClass['data']['verification_status'] = 'Unable to Verify - No bank API available';
+            } else {
+                // For upi:// URIs, pn comes from the QR code itself (self-declared, NOT verified)
+                $payloadClass['data']['verification_status'] = 'Unverified - Name is self-declared by QR creator';
             }
 
         } else {

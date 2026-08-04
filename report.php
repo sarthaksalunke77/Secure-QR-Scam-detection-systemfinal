@@ -506,8 +506,8 @@ include 'includes/header.php';
                                     <strong class="text-white font-mono text-base"><?php echo htmlspecialchars($vpa); ?></strong>
                                 </div>
                                 <div>
-                                    <span class="text-gray-500 block text-xs">Account Holder Name (Verified via API)</span>
-                                    <strong class="text-green-400 text-base"><?php echo htmlspecialchars($name); ?></strong>
+                                    <span class="text-gray-500 block text-xs">Payee Name (Self-Declared in QR Code)</span>
+                                    <strong class="text-yellow-400 text-base"><?php echo htmlspecialchars($name ?: 'Not Available'); ?> <span class="text-[10px] text-yellow-500 font-normal">(Unverified)</span></strong>
                                 </div>
                                 <div>
                                     <span class="text-gray-500 block text-xs">Requested Transaction Amount</span>
@@ -521,7 +521,7 @@ include 'includes/header.php';
                         </div>
                         <div class="p-4 bg-blue-900/10 border border-blue-500/20 rounded-xl flex gap-3 text-sm">
                             <i class="ph ph-shield-check text-blue-400 text-2xl flex-shrink-0 mt-0.5"></i>
-                            <p class="text-gray-300">This payload is a financial UPI link. We validated the structure, format integrity, bank handle, and verified the account holder name via payment network hooks. Ensure you recognize the recipient's name before approving any payment.</p>
+                            <p class="text-gray-300">This payload is a financial UPI link. We validated the structure, format integrity, and bank handle format. <strong class="text-yellow-400">The payee name shown above is self-declared by the QR code creator and has NOT been independently verified.</strong> Always confirm the recipient's identity through your bank app before approving any payment.</p>
                         </div>
                     </div>
                 </div>

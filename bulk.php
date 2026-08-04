@@ -93,7 +93,7 @@
                             <thead>
                                 <tr class="bg-gray-900/30 sticky top-0">
                                     <th class="p-3 text-gray-400 font-semibold w-12">QR</th>
-                                    <th class="p-3 text-gray-400 font-semibold">Holder Name / URL</th>
+                                    <th class="p-3 text-gray-400 font-semibold">Payee Name / URL</th>
                                     <th class="p-3 text-gray-400 font-semibold">UPI ID / Domain</th>
                                     <th class="p-3 text-gray-400 font-semibold text-center">Risk Score</th>
                                     <th class="p-3 text-gray-400 font-semibold text-center">Trust Score</th>
@@ -345,15 +345,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const d = r.details;
                 const isUpi = d.payloadClass?.type === 'upi' || d.payloadClass?.type === 'upi_id_only';
                 const upi = d.payloadClass?.data || {};
-                const name = isUpi && upi.pn ? upi.pn : (isUpi ? 'N/A' : 'Web URL');
+                const verStatus = upi.verification_status || '';
+                let name;
+                if (isUpi) {
+                    name = upi.pn ? upi.pn : 'Not Available';
+                } else {
+                    name = 'Web URL';
+                }
                 const idOrDomain = isUpi && upi.pa ? upi.pa : (d.analysisResult?.domain || r.payload);
+                const verBadge = isUpi ? `<span class="text-[10px] text-yellow-400 block">(${verStatus ? 'Unverified' : ''})</span>` : '';
                 
                 return `
                 <tr class="border-t border-cyber-border/50 hover:bg-gray-800/30 transition-colors">
                     <td class="p-2">
                         ${r.qr ? `<img src="${r.qr}" class="w-8 h-8 object-contain bg-white rounded" />` : `<div class="w-8 h-8 bg-gray-800 rounded flex items-center justify-center text-xs text-gray-500">None</div>`}
                     </td>
-                    <td class="p-3 text-gray-300 font-semibold text-sm truncate max-w-[150px]" title="${name}">${name}</td>
+                    <td class="p-3 text-gray-300 font-semibold text-sm truncate max-w-[200px]" title="${name}">${name}${verBadge}</td>
                     <td class="p-3 text-gray-400 font-mono text-xs truncate max-w-[150px]" title="${idOrDomain}">${idOrDomain}</td>
                     <td class="p-3 font-mono font-bold text-gray-200 text-center">${r.riskScore}<span class="text-gray-600 text-xs font-normal">/100</span></td>
                     <td class="p-3 font-mono font-bold text-gray-200 text-center">${r.trustScore}<span class="text-gray-600 text-xs font-normal">/100</span></td>
@@ -393,8 +400,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const summaryData = finalResults.map(item => {
             const upi = item.details.payloadClass?.data || {};
             const isUpi = item.details.payloadClass?.type === 'upi' || item.details.payloadClass?.type === 'upi_id_only';
+            let holderName;
+            if (isUpi) {
+                holderName = upi.pn ? upi.pn + ' (Unverified - from QR)' : 'Not Available';
+            } else {
+                holderName = 'Web URL';
+            }
             return [
-                isUpi && upi.pn ? upi.pn : (isUpi ? 'N/A' : 'Web URL'),
+                holderName,
                 isUpi && upi.pa ? upi.pa : item.payload,
                 item.riskScore,
                 item.trustScore,
@@ -442,8 +455,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const detailsLines = [];
             if (isUpi) {
-                detailsLines.push(`QR Holder Name: ${upi.pn || 'Not Provided'}`);
-                detailsLines.push(`Receiver / Payee Name: ${upi.pn || 'Not Provided'}`);
+                detailsLines.push(`Payee Name (from QR): ${upi.pn || 'Not Provided'}`);
+                detailsLines.push(`Verification Status: ${upi.verification_status || 'Unable to Verify'}`);
                 detailsLines.push(`UPI ID: ${upi.pa || 'Missing'}`);
                 
                 let country = "India (UPI Network)";
