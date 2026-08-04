@@ -227,8 +227,23 @@
                                     await runAnalysisPipeline(code.data, 'pdf_upload');
                                     return;
                                 }
+
+                                // Fallback: Scan text content for URLs if no QR code image exists
+                                logMsg(`No QR found on page ${i}, scanning for plain text URLs...`);
+                                const textContent = await page.getTextContent();
+                                let rawText = textContent.items.map(item => item.str).join('\n');
+                                rawText = rawText.replace(/([:\/.?=&\-_])\s*\n\s*/g, '$1');
+                                rawText = rawText.replace(/\s+/g, ' ');
+                                
+                                const urlRegex = /(https?:\/\/[^\s]+|upi:\/\/pay[^\s]+)/gi;
+                                const matches = rawText.match(urlRegex);
+                                if (matches && matches.length > 0) {
+                                    logMsg(`URL successfully extracted from page ${i} text!`);
+                                    await runAnalysisPipeline(matches[0], 'pdf_upload');
+                                    return;
+                                }
                             }
-                            throw new Error('No QR code found inside PDF pages.');
+                            throw new Error('No QR code or valid URL found inside PDF pages.');
                         } catch (err) {
                             showFileError(err.message);
                         }
