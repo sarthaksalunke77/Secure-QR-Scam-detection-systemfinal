@@ -274,14 +274,11 @@ class RiskEngine {
             elseif ($trustScore >= 50) $verdict = 'SUSPICIOUS';
             else $verdict = 'DANGEROUS';
 
-            // Simulate VPA verification holder name
-            $vpaAddr = $d['pa'] ?? $d['vpa'] ?? 'user@bank';
-            $hash = md5($vpaAddr);
-            $firstNames = ['Rahul', 'Priya', 'Amit', 'Neha', 'Sanjay', 'Kavita', 'Vikram', 'Pooja', 'Anil', 'Sneha'];
-            $lastNames = ['Sharma', 'Patel', 'Singh', 'Kumar', 'Gupta', 'Verma', 'Joshi', 'Deshmukh', 'Reddy', 'Rao'];
-            $fIndex = hexdec(substr($hash, 0, 4)) % count($firstNames);
-            $lIndex = hexdec(substr($hash, 4, 4)) % count($lastNames);
-            $payloadClass['data']['pn'] = strtoupper($firstNames[$fIndex] . ' ' . $lastNames[$lIndex]) . ' (Verified)';
+            // Use real payee name from QR code 'pn' field only — never fabricate
+            // If no pn field is present in the QR, show honest "Not Available"
+            if (empty($payloadClass['data']['pn'])) {
+                $payloadClass['data']['pn'] = 'Not Available';
+            }
 
         } else {
             // Plain text
