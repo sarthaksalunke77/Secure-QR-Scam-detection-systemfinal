@@ -1,4 +1,6 @@
 <?php
+error_reporting(0); // Suppress warnings from polluting JSON output
+ini_set('display_errors', 0);
 require_once 'db.php';
 header('Content-Type: application/json');
 

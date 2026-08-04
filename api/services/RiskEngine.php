@@ -231,6 +231,7 @@ class RiskEngine {
             }
 
             // Hard overrides
+            $isBlacklisted = ($threatIntel && ($threatIntel['blacklistMatch'] ?? false || $threatIntel['status'] === 'MALICIOUS'));
             if ($verdict === 'SAFE' && ($hasPhishing || $isBlacklisted || ($sslCheck && $sslCheck['status'] !== 'VALID'))) {
                 $verdict = 'LOW_RISK';
             }
