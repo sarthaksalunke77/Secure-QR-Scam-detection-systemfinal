@@ -110,9 +110,13 @@ class DomainChecker {
                 }
 
                 // Basic DNSSEC Check
-                $dnssecRecords = @dns_get_record($hostname, DNS_DNSKEY);
-                if (is_array($dnssecRecords) && count($dnssecRecords) > 0) {
-                    $result['dns_records']['dnssec'] = 'Enabled';
+                if (defined('DNS_DNSKEY')) {
+                    $dnssecRecords = @dns_get_record($hostname, DNS_DNSKEY);
+                    if (is_array($dnssecRecords) && count($dnssecRecords) > 0) {
+                        $result['dns_records']['dnssec'] = 'Enabled';
+                    }
+                } else {
+                    $result['dns_records']['dnssec'] = 'Unable to Verify';
                 }
             } else {
                 $result['dnsResolved'] = false;

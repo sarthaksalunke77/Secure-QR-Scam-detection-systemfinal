@@ -36,6 +36,20 @@ $redirectCheck = $details['redirectCheck'] ?? null;
 $threatIntel = $details['threatIntel'] ?? null;
 $analysisResult = $details['analysisResult'] ?? null;
 
+$hasPhishing = false;
+if (is_array($evidence)) {
+    foreach ($evidence as $ev) {
+        if (($ev['id'] ?? '') === 'BRAND_IMPERSONATION' || ($ev['id'] ?? '') === 'THREAT_SUSPICIOUS' || ($ev['id'] ?? '') === 'THREAT_MALICIOUS') {
+            $hasPhishing = true;
+        }
+    }
+}
+if ($threatIntel && ($threatIntel['phishing'] ?? false)) {
+    $hasPhishing = true;
+}
+
+$hasSuspiciousRedirects = ($redirectCheck && (($redirectCheck['crossDomainRedirect'] ?? false) || ($redirectCheck['httpsDowngrade'] ?? false) || ($redirectCheck['excessiveRedirects'] ?? false) || ($redirectCheck['redirectLoop'] ?? false)));
+
 // Determine colors & classes
 $isDangerous = ($verdict === 'DANGEROUS' || $verdict === 'DANGEROUS (DEMO)');
 $isSuspicious = ($verdict === 'SUSPICIOUS');
