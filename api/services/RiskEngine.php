@@ -237,9 +237,12 @@ class RiskEngine {
             }
 
         } else if ($payloadClass['type'] === 'upi' || $payloadClass['type'] === 'upi_id_only') {
-            $checksCompleted = 7;
-            $trustScore = 100;
+            // UPI payloads: we can only validate format, NOT verify the actual account holder
+            $checksCompleted = 2; // Only format check and structure validation — no SSL, DNS, threat intel, etc.
+            $trustScore = 75; // Start lower since we can't truly verify UPI identities
             $d = $payloadClass['data'];
+
+            $this->addEvidence('UPI_UNVERIFIED', 'UPI_ANALYSIS', 'info', 0, 'UPI holder name cannot be independently verified — shown as declared by QR creator.');
 
             if ($payloadClass['type'] === 'upi') {
                 if (isset($d['error'])) {
@@ -249,13 +252,29 @@ class RiskEngine {
                     if (empty($d['pa'])) {
                         $this->addEvidence('UPI_MISSING_PA', 'UPI_ANALYSIS', 'high', 50, 'Missing Payee Address (pa).');
                         $trustScore -= 30;
+                    } else {
+                        // Validate bank handle format
+                        $pa = $d['pa'];
+                        if (preg_match('/^[a-zA-Z0-9.\-_]+@[a-zA-Z]+$/', $pa)) {
+                            $trustScore += 10; // Valid VPA format
+                        } else {
+                            $this->addEvidence('UPI_INVALID_VPA', 'UPI_ANALYSIS', 'medium', 15, 'UPI VPA format appears invalid.');
+                            $trustScore -= 10;
+                        }
                     }
                     if (!empty($d['am'])) {
                         $amNum = floatval($d['am']);
                         if ($amNum > 100000) {
-                            $this->addEvidence('UPI_LARGE_AMOUNT', 'UPI_ANALYSIS', 'medium', 15, 'Suspiciously large transaction amount requested.');
+                            $this->addEvidence('UPI_LARGE_AMOUNT', 'UPI_ANALYSIS', 'medium', 15, 'Suspiciously large transaction amount requested (₹' . number_format($amNum) . ').');
                             $trustScore -= 20;
+                        } elseif ($amNum > 10000) {
+                            $this->addEvidence('UPI_HIGH_AMOUNT', 'UPI_ANALYSIS', 'low', 5, 'High transaction amount requested (₹' . number_format($amNum) . '). Verify before paying.');
+                            $trustScore -= 5;
                         }
+                    }
+                    if (empty($d['pn'])) {
+                        $this->addEvidence('UPI_NO_PAYEE_NAME', 'UPI_ANALYSIS', 'medium', 10, 'No payee name specified in QR code.');
+                        $trustScore -= 5;
                     }
                 }
             } else { // upi_id_only
@@ -263,15 +282,25 @@ class RiskEngine {
                 if (strpos($vpa, '@') === false) {
                     $this->addEvidence('UPI_MISSING_AT', 'UPI_ANALYSIS', 'high', 50, 'Missing @ symbol in UPI ID.');
                     $trustScore -= 40;
+                } else {
+                    // Check if bank handle is recognized
+                    $bankHandle = substr($vpa, strpos($vpa, '@') + 1);
+                    $knownHandles = ['paytm', 'ybl', 'upi', 'oksbi', 'okicici', 'okaxis', 'okhdfcbank', 'ibl', 'axl', 'sbi', 'icici', 'hdfcbank', 'apl', 'fbl', 'kotak', 'indus', 'boi', 'pnb', 'cnrb', 'cbin', 'ubi', 'unionbank'];
+                    if (!in_array(strtolower($bankHandle), $knownHandles)) {
+                        $this->addEvidence('UPI_UNKNOWN_HANDLE', 'UPI_ANALYSIS', 'low', 5, "Unknown bank handle '@$bankHandle'. Verify this UPI ID.");
+                        $trustScore -= 5;
+                    } else {
+                        $trustScore += 5; // Known bank handle
+                    }
                 }
             }
 
-            $trustScore = max(0, $trustScore);
+            $trustScore = max(0, min(100, $trustScore));
             $riskScore = 100 - $trustScore;
             
-            if ($trustScore >= 90) $verdict = 'SAFE';
-            elseif ($trustScore >= 70) $verdict = 'LOW_RISK';
-            elseif ($trustScore >= 50) $verdict = 'SUSPICIOUS';
+            if ($trustScore >= 80) $verdict = 'LOW_RISK'; // UPI can never be "SAFE" since we can't verify
+            elseif ($trustScore >= 60) $verdict = 'LOW_RISK';
+            elseif ($trustScore >= 40) $verdict = 'SUSPICIOUS';
             else $verdict = 'DANGEROUS';
 
             // UPI holder name - use what's in the QR code (self-declared by creator), do NOT fabricate
