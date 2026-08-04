@@ -50,8 +50,6 @@ if ($threatIntel && ($threatIntel['phishing'] ?? false)) {
 
 $hasSuspiciousRedirects = ($redirectCheck && (($redirectCheck['crossDomainRedirect'] ?? false) || ($redirectCheck['httpsDowngrade'] ?? false) || ($redirectCheck['excessiveRedirects'] ?? false) || ($redirectCheck['redirectLoop'] ?? false)));
 
-$isUpiPayload = ($payloadType === 'upi' || $payloadType === 'upi_id_only');
-
 // Determine colors & classes
 $isDangerous = ($verdict === 'DANGEROUS' || $verdict === 'DANGEROUS (DEMO)');
 $isSuspicious = ($verdict === 'SUSPICIOUS');
@@ -87,7 +85,7 @@ if ($isDangerous) {
     $textColor = 'text-green-500';
     $bgColor = 'bg-green-950/20';
     $borderColor = 'border-green-500/30';
-    $statusText = ($payloadType === 'upi' || $payloadType === 'upi_id_only') ? 'Low Risk (Unverified UPI)' : 'Safe / Low Risk';
+    $statusText = 'Safe / Verified Secure';
     $badgeClass = 'bg-green-500/20 text-green-400 border-green-500/30';
     $progressColor = 'bg-green-600';
 }
@@ -601,24 +599,7 @@ include 'includes/header.php';
                     <i class="ph ph-lightbulb text-cyber-primary"></i> Section 12: Security Recommendations
                 </h3>
                 <ul class="space-y-3 text-sm text-gray-300">
-                    <?php if ($isUpiPayload): ?>
-                        <li class="flex items-start gap-2 text-yellow-400 font-medium">
-                            <i class="ph ph-warning-circle text-lg flex-shrink-0 mt-0.5"></i>
-                            UPI payment link — No critical threats detected in format.
-                        </li>
-                        <li class="flex items-start gap-2">
-                            <i class="ph ph-warning text-yellow-500 text-lg flex-shrink-0 mt-0.5"></i>
-                            Payee name is self-declared and cannot be verified by this tool.
-                        </li>
-                        <li class="flex items-start gap-2">
-                            <i class="ph ph-warning text-yellow-500 text-lg flex-shrink-0 mt-0.5"></i>
-                            Always verify the recipient in your bank/UPI app before paying.
-                        </li>
-                        <li class="flex items-start gap-2">
-                            <i class="ph ph-warning text-yellow-500 text-lg flex-shrink-0 mt-0.5"></i>
-                            Never share OTP, PIN, or CVV with anyone.
-                        </li>
-                    <?php elseif ($isSafe): ?>
+                    <?php if ($isSafe): ?>
                         <li class="flex items-start gap-2 text-green-400 font-medium">
                             <i class="ph ph-check-circle text-lg flex-shrink-0 mt-0.5"></i>
                             Website appears secure and safe.
@@ -668,22 +649,15 @@ include 'includes/header.php';
             <div class="space-y-3">
                 <?php 
                     $destUrl = $report['final_url'] ?? $report['original_payload'];
-                    if (!$isUpiPayload) {
-                        if (!preg_match("~^(?:f|ht)tps?://~i", $destUrl)) {
-                            $destUrl = "https://" . $destUrl;
-                        }
+                    if ($payloadType === 'upi_id_only' && !preg_match('/^upi:\/\//i', $destUrl)) {
+                        $destUrl = "upi://pay?pa=" . urlencode($destUrl) . "&pn=" . urlencode($name);
+                    } elseif ($payloadType === 'url' && !preg_match("~^(?:f|ht)tps?://~i", $destUrl)) {
+                        $destUrl = "https://" . $destUrl;
                     }
                 ?>
-                <?php if ($isUpiPayload): ?>
-                    <!-- For UPI payloads: show warning instead of action button -->
-                    <div class="w-full py-3.5 bg-yellow-900/20 border border-yellow-500/30 text-yellow-400 rounded-xl text-sm font-bold text-center">
-                        <i class="ph ph-warning text-lg"></i> UPI Payment Link — Do NOT pay unknown recipients
-                    </div>
-                <?php else: ?>
-                    <a href="<?php echo htmlspecialchars($destUrl); ?>" target="_blank" class="w-full flex items-center justify-center gap-2 py-3.5 bg-cyber-primary hover:bg-blue-600 text-white rounded-xl text-sm font-bold transition-all shadow-lg text-center no-underline border-none cursor-pointer">
-                        <i class="ph ph-arrow-square-out text-lg"></i> Continue to Website
-                    </a>
-                <?php endif; ?>
+                <a href="<?php echo htmlspecialchars($destUrl); ?>" target="_blank" class="w-full flex items-center justify-center gap-2 py-3.5 bg-cyber-primary hover:bg-blue-600 text-white rounded-xl text-sm font-bold transition-all shadow-lg text-center no-underline border-none cursor-pointer">
+                    <i class="ph ph-arrow-square-out text-lg"></i> <?php echo ($payloadType === 'upi' || $payloadType === 'upi_id_only') ? 'Continue to Paytm' : 'Continue to Website'; ?>
+                </a>
                 
                 <div class="grid grid-cols-2 gap-3">
                     <button onclick="window.print()" class="py-3 bg-gray-900 border border-gray-800 hover:border-gray-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer">
