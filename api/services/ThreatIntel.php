@@ -41,6 +41,9 @@ class ThreatIntel {
             $ip = gethostbyname($domain);
             $isValidIp = filter_var($ip, FILTER_VALIDATE_IP) !== false;
 
+            $mh = curl_multi_init();
+            $handles = [];
+
             // 2. Query VirusTotal API (v3)
             if ($isVtConfigured) {
                 $urlId = rtrim(strtr(base64_encode($url), '+/', '-_'), '=');
@@ -52,30 +55,8 @@ class ThreatIntel {
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ["x-apikey: " . $vtKey]);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 2);
                 curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
-                $vtResponse = curl_exec($ch);
-                curl_close($ch);
-
-                if ($vtResponse) {
-                    $vtData = json_decode($vtResponse, true);
-                    if (isset($vtData['data']['attributes']['last_analysis_stats'])) {
-                        $stats = $vtData['data']['attributes']['last_analysis_stats'];
-                        $result['raw_details']['virustotal'] = $stats;
-                        $result['providers'][] = 'VirusTotal';
-
-                        $malicious = $stats['malicious'] ?? 0;
-                        $suspicious = $stats['suspicious'] ?? 0;
-
-                        if ($malicious > 0) {
-                            $result['malicious'] = true;
-                            $result['status'] = "MALICIOUS";
-                            $result['detections'] += $malicious;
-                        }
-                        if ($suspicious > 0) {
-                            $result['suspicious'] = true;
-                            if ($result['status'] !== 'MALICIOUS') $result['status'] = "SUSPICIOUS";
-                        }
-                    }
-                }
+                curl_multi_add_handle($mh, $ch);
+                $handles['vt'] = $ch;
             }
 
             // 3. Query Google Safe Browsing API (v4)
@@ -99,22 +80,8 @@ class ThreatIntel {
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 2);
                 curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
-                $gsbResponse = curl_exec($ch);
-                curl_close($ch);
-
-                if ($gsbResponse) {
-                    $gsbData = json_decode($gsbResponse, true);
-                    $result['providers'][] = 'Google Safe Browsing';
-                    if (isset($gsbData['matches']) && count($gsbData['matches']) > 0) {
-                        $result['raw_details']['google_safe_browsing'] = $gsbData['matches'];
-                        $result['phishing'] = true;
-                        $result['blacklistMatch'] = true;
-                        $result['status'] = "MALICIOUS";
-                        $result['detections'] += count($gsbData['matches']);
-                    } else {
-                        $result['raw_details']['google_safe_browsing'] = 'Clean';
-                    }
-                }
+                curl_multi_add_handle($mh, $ch);
+                $handles['gsb'] = $ch;
             }
 
             // 4. Query AbuseIPDB API (v2)
@@ -130,10 +97,75 @@ class ThreatIntel {
                 ]);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 2);
                 curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
-                $abuseResponse = curl_exec($ch);
-                curl_close($ch);
+                curl_multi_add_handle($mh, $ch);
+                $handles['abuse'] = $ch;
+            }
 
-                if ($abuseResponse) {
+            // Execute all concurrently
+            $active = null;
+            do {
+                $mrc = curl_multi_exec($mh, $active);
+            } while ($mrc == CURLM_CALL_MULTI_PERFORM);
+
+            while ($active && $mrc == CURLM_OK) {
+                if (curl_multi_select($mh) == -1) {
+                    usleep(100);
+                }
+                do {
+                    $mrc = curl_multi_exec($mh, $active);
+                } while ($mrc == CURLM_CALL_MULTI_PERFORM);
+            }
+
+            $vtResponse = isset($handles['vt']) ? curl_multi_getcontent($handles['vt']) : null;
+            $gsbResponse = isset($handles['gsb']) ? curl_multi_getcontent($handles['gsb']) : null;
+            $abuseResponse = isset($handles['abuse']) ? curl_multi_getcontent($handles['abuse']) : null;
+
+            foreach ($handles as $ch) {
+                curl_multi_remove_handle($mh, $ch);
+                curl_close($ch);
+            }
+            curl_multi_close($mh);
+
+            // 2b. Parse VT
+            if ($isVtConfigured && $vtResponse) {
+                $vtData = json_decode($vtResponse, true);
+                if (isset($vtData['data']['attributes']['last_analysis_stats'])) {
+                    $stats = $vtData['data']['attributes']['last_analysis_stats'];
+                    $result['raw_details']['virustotal'] = $stats;
+                    $result['providers'][] = 'VirusTotal';
+
+                    $malicious = $stats['malicious'] ?? 0;
+                    $suspicious = $stats['suspicious'] ?? 0;
+
+                    if ($malicious > 0) {
+                        $result['malicious'] = true;
+                        $result['status'] = "MALICIOUS";
+                        $result['detections'] += $malicious;
+                    }
+                    if ($suspicious > 0) {
+                        $result['suspicious'] = true;
+                        if ($result['status'] !== 'MALICIOUS') $result['status'] = "SUSPICIOUS";
+                    }
+                }
+            }
+
+            // 3b. Parse GSB
+            if ($isGsbConfigured && $gsbResponse) {
+                $gsbData = json_decode($gsbResponse, true);
+                $result['providers'][] = 'Google Safe Browsing';
+                if (isset($gsbData['matches']) && count($gsbData['matches']) > 0) {
+                    $result['raw_details']['google_safe_browsing'] = $gsbData['matches'];
+                    $result['phishing'] = true;
+                    $result['blacklistMatch'] = true;
+                    $result['status'] = "MALICIOUS";
+                    $result['detections'] += count($gsbData['matches']);
+                } else {
+                    $result['raw_details']['google_safe_browsing'] = 'Clean';
+                }
+            }
+
+            // 4b. Parse AbuseIPDB
+            if ($isAbuseConfigured && $isValidIp && $abuseResponse) {
                     $abuseData = json_decode($abuseResponse, true);
                     if (isset($abuseData['data'])) {
                         $score = $abuseData['data']['abuseConfidenceScore'] ?? 0;
@@ -151,7 +183,6 @@ class ThreatIntel {
                         }
                     }
                 }
-            }
 
             // 5. Local Heuristics & Blacklist Fallback (if APIs are missing/empty or return nothing)
             if (empty($result['providers'])) {
