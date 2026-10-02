@@ -45,6 +45,8 @@ class RiskEngine {
         $redirectCheck = null;
         $geoIP = null;
         $headersCheck = null;
+        $hasPhishing = false;
+        $hasSuspiciousRedirects = false;
 
         $checksCompleted = 0;
         $totalPossibleChecks = 7; // Classify, Domain, SSL, Redirect, ThreatIntel, GeoIP, Headers
@@ -257,25 +259,48 @@ class RiskEngine {
                 $verdict = 'LOW_RISK';
             }
 
-        } else if ($payloadClass['type'] === 'upi' || $payloadClass['type'] === 'upi_id_only') {
-            $checksCompleted = 7;
-            $trustScore = 100;
+        } else if (in_array($payloadClass['type'], ['upi', 'upi_id_only'])) {
+            require_once 'UpiVerification.php';
+            $checksCompleted = 0;
+            $negativePoints = 0;
+            $hasSuspicious = false;
+            $hasMalicious = false;
+            
             $d = $payloadClass['data'];
-
+            
             if ($payloadClass['type'] === 'upi') {
                 if (isset($d['error'])) {
                     $this->addEvidence('UPI_FORMAT_ERROR', 'UPI_ANALYSIS', 'high', 80, 'Malformed UPI URI.');
-                    $trustScore -= 60;
+                    $negativePoints += 60;
+                    $hasSuspicious = true;
                 } else {
                     if (empty($d['pa'])) {
                         $this->addEvidence('UPI_MISSING_PA', 'UPI_ANALYSIS', 'high', 50, 'Missing Payee Address (pa).');
-                        $trustScore -= 30;
+                        $negativePoints += 50;
+                        $hasSuspicious = true;
                     }
-                    if (!empty($d['am'])) {
+                    if (isset($d['am'])) {
                         $amNum = floatval($d['am']);
                         if ($amNum > 100000) {
                             $this->addEvidence('UPI_LARGE_AMOUNT', 'UPI_ANALYSIS', 'medium', 15, 'Suspiciously large transaction amount requested.');
-                            $trustScore -= 20;
+                            $negativePoints += 30;
+                            $hasSuspicious = true;
+                        }
+                    }
+                    if (isset($d['tn'])) {
+                        $tnLower = strtolower($d['tn']);
+                        if (strpos($tnLower, 'refund') !== false || strpos($tnLower, 'lottery') !== false || strpos($tnLower, 'cashback') !== false) {
+                            $this->addEvidence('UPI_SUSPICIOUS_NOTE', 'UPI_ANALYSIS', 'high', 40, 'Suspicious terminology or amounts detected in the UPI request.');
+                            $negativePoints += 50;
+                            $hasSuspicious = true;
+                        }
+                    }
+                    if (isset($d['pn'])) {
+                        $pnLower = strtolower($d['pn']);
+                        if (strpos($pnLower, 'customer care') !== false || strpos($pnLower, 'support') !== false) {
+                            $this->addEvidence('UPI_SUSPICIOUS_NAME', 'UPI_ANALYSIS', 'high', 50, 'Impersonation risk in payee name.');
+                            $negativePoints += 80;
+                            $hasMalicious = true;
                         }
                     }
                 }
@@ -283,29 +308,48 @@ class RiskEngine {
                 $vpa = $d['vpa'] ?? '';
                 if (strpos($vpa, '@') === false) {
                     $this->addEvidence('UPI_MISSING_AT', 'UPI_ANALYSIS', 'high', 50, 'Missing @ symbol in UPI ID.');
-                    $trustScore -= 40;
+                    $negativePoints += 50;
+                    $hasSuspicious = true;
                 }
             }
 
-            $trustScore = max(0, $trustScore);
+            // Perform active UPI verification via API
+            $vpaToVerify = ($payloadClass['type'] === 'upi') ? ($d['pa'] ?? null) : ($d['vpa'] ?? null);
+            $baseTrustScore = 100 - $negativePoints;
+
+            if ($vpaToVerify) {
+                $verifyResult = UpiVerification::verify($vpaToVerify);
+                if ($verifyResult['success'] && !empty($verifyResult['accountHolderName'])) {
+                    $payloadClass['data']['accountHolderName'] = $verifyResult['accountHolderName'];
+                    $payloadClass['data']['verification_status'] = 'VERIFIED';
+                    $this->addEvidence('UPI_IDENTITY_VERIFIED', 'VERIFICATION_API', 'info', 0, 'Payee identity verified via banking network.');
+                } else {
+                    $payloadClass['data']['verification_status'] = 'UNVERIFIED';
+                    $baseTrustScore -= 20; // Minor trust penalty for lack of independent verification
+                    $this->addEvidence('UPI_IDENTITY_UNVERIFIED', 'VERIFICATION_API', 'info', 0, 'Recipient identity could not be independently verified — this does not confirm the account is safe.');
+                }
+            } else {
+                $payloadClass['data']['verification_status'] = 'Not Performed';
+            }
+
+            // Calculate numeric Risk Score based purely on evidence
+            $trustScore = max(0, min(100, $baseTrustScore));
             $riskScore = 100 - $trustScore;
-            
-            if ($trustScore >= 90) $verdict = 'SAFE';
-            elseif ($trustScore >= 70) $verdict = 'LOW_RISK';
-            elseif ($trustScore >= 50) $verdict = 'SUSPICIOUS';
-            else $verdict = 'DANGEROUS';
+
+            if ($hasMalicious || $riskScore >= 75) {
+                $verdict = 'DANGEROUS';
+                $riskScore = max(75, $riskScore);
+            } elseif ($hasSuspicious || $riskScore > 20) {
+                $verdict = 'SUSPICIOUS';
+            } else {
+                $verdict = 'SAFE';
+            }
 
             // UPI holder name - use what's in the QR code (self-declared by creator), do NOT fabricate
             if ($payloadClass['type'] === 'upi_id_only') {
-                // For standalone UPI IDs, we have no payee name info
                 $payloadClass['data']['pn'] = null;
                 $payloadClass['data']['pa'] = $d['vpa'] ?? null;
-                $payloadClass['data']['verification_status'] = 'Unable to Verify - No bank API available';
-            } else {
-                // For upi:// URIs, pn comes from the QR code itself (self-declared, NOT verified)
-                $payloadClass['data']['verification_status'] = 'Unverified - Name is self-declared by QR creator';
             }
-
         } else {
             // Plain text
             $checksCompleted = 7;

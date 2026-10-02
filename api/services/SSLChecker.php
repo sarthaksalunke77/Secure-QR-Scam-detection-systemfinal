@@ -40,7 +40,7 @@ class SSLChecker {
                 ]
             ]);
 
-            $timeout = 5;
+            $timeout = 2;
             $client = @stream_socket_client("ssl://{$hostname}:443", $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $context);
 
             $result['checked'] = true;

@@ -50,7 +50,8 @@ class ThreatIntel {
                 curl_setopt($ch, CURLOPT_URL, $vtUrl);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ["x-apikey: " . $vtKey]);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
                 $vtResponse = curl_exec($ch);
                 curl_close($ch);
 
@@ -96,7 +97,8 @@ class ThreatIntel {
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
                 $gsbResponse = curl_exec($ch);
                 curl_close($ch);
 
@@ -126,7 +128,8 @@ class ThreatIntel {
                     "Key: " . $abuseKey,
                     "Accept: application/json"
                 ]);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
                 $abuseResponse = curl_exec($ch);
                 curl_close($ch);
 

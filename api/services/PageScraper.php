@@ -16,7 +16,8 @@ class PageScraper {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         // We only need the first ~15KB where the head usually is
         curl_setopt($ch, CURLOPT_RANGE, '0-15360');
-        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);

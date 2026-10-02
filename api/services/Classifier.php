@@ -8,7 +8,7 @@ class Classifier {
         $trimmed = trim($payload);
 
         // Check for UPI
-        if (stripos($trimmed, 'upi://pay') === 0) {
+        if (stripos($trimmed, 'upi://pay') === 0 || stripos($trimmed, 'upi:') === 0 || (stripos($trimmed, 'pa=') !== false && stripos($trimmed, 'pn=') !== false)) {
             return ['type' => 'upi', 'data' => self::parseUpiUri($trimmed)];
         }
         
@@ -31,12 +31,26 @@ class Classifier {
     }
 
     public static function parseUpiUri($uri) {
-        $parsed = parse_url($uri);
-        if ($parsed === false || !isset($parsed['query'])) {
-            return ['raw' => $uri, 'error' => 'Invalid UPI format'];
+        $uri = str_replace('&amp;', '&', $uri);
+        // Fix unencoded spaces that might break parse_url in some PHP versions
+        $safeUri = str_replace(' ', '%20', $uri);
+        $parsed = parse_url($safeUri);
+        
+        $params = [];
+        if ($parsed !== false && isset($parsed['query'])) {
+            parse_str($parsed['query'], $params);
+        } else {
+            // Fallback: manually extract query string if parse_url still fails
+            $parts = explode('?', $uri, 2);
+            if (count($parts) === 2) {
+                parse_str($parts[1], $params);
+            } else {
+                return ['raw' => $uri, 'error' => 'Invalid UPI format'];
+            }
         }
 
-        parse_str($parsed['query'], $params);
+        // Make keys case-insensitive by lowercasing all keys
+        $params = array_change_key_case($params, CASE_LOWER);
         
         return [
             'raw' => $uri,
